@@ -1,0 +1,248 @@
+@font-face {
+    font-family: 'Anonymous Pro';
+    src: url('/assets/fonts/AnonymousPro-Regular.ttf');
+}
+
+@font-face {
+    font-family: 'Bricolage Grotesque';
+    src: url('/assets/fonts/BricolageGrotesque-Regular.ttf');
+}
+
+.font-secondary, .font-secondary * {
+    font-family: 'Anonymous Pro', monospace !important;
+}
+
+/** bg */
+body {
+    min-height: 100vh;
+}
+
+body .bg {
+    position: fixed;
+    inset: 0;
+    background-image: url('/assets/img/music-bg.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    z-index: -1;
+}
+
+body .page-content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+body .page-content main {
+    flex: 1 0 auto;
+}
+/** end bg */
+
+
+/** Navbar */
+.navbar--custom {
+    margin: 20px;
+    border-radius: 20px;
+}
+/** end Navbar */
+
+.text-lg {
+    font-size: 72px;
+}
+
+@media screen and (max-width: 768px) {
+    .text-lg {
+        font-size: 46px;    
+    }
+    
+}
+.text-bolder {
+    font-weight: bolder;
+}
+
+main {
+    position: relative !important;
+    background-color: transparent;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    margin: 24px;
+    border-radius: 20px;
+}
+
+main .explorer .text-incentive {
+    font-weight: bolder;
+}
+
+main .explorer .avatar {
+    width: 100%;
+    height: 100%;
+    max-height: 70vh;
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+main .explorer .avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 20px;
+    object-fit: cover;
+    transition: transform 400ms;
+}
+
+
+main .explorer .avatar img:hover {
+    transform: scale(1.1)
+}
+
+
+/** Playlist */
+.playlist {
+    display: flex;
+    gap: 20px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 10px;
+}
+
+.playlist .card {
+    background-color: transparent;
+    border: none !important;
+    height: 100%;
+    min-width: 300px;
+    margin: auto;
+
+
+}
+
+/* .playlist::-webkit-scrollbar {
+    width: 2px;
+}
+
+.playlist::-webkit-scrollbar-thumb {
+    background-color: transparent;
+    border-radius: 5px;
+}
+
+.playlist .card::-webkit-scrollbar-thumb:hover {
+    background-color: transparent;
+    border-radius: 5px;
+} */
+
+.playlist .card .card__img {
+    width: 200px;
+    height: 200px;
+    border-radius: 10px;
+    margin: 5px;
+}
+
+.playlist .card .card__img img {
+    width: 100%;
+    height: 100%;
+    border-radius: 10px;
+}
+
+.playlist .card .card__desc {
+    width: 100%;
+    max-width: 200px;
+}
+.playlist .card .card__name {
+    color: white;
+}
+
+.artist .artist__img {
+    width: 200px;
+    height: 200px;
+    border-radius: 10px;
+    margin: 5px auto;
+}
+
+.artist .artist__img img {
+    width: 100%;
+    height: 100%;
+    border-radius: 10px;
+}
+
+.player-option {
+    max-width: min-content;
+    margin: auto;
+}
+
+.sound-track {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    position: relative;
+}
+
+.sound-track img {
+    border-radius: 10px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+th, td {
+    height: 64px;
+} 
+
+.social-links a {
+    color: white !important;
+    text-decoration: none !important;
+}
+
+.social-links i {
+    font-size: 24px;
+}
+
+/** Cartes artistes */
+.playlist .card {
+    transition: transform 250ms ease;
+}
+
+.playlist .card:hover {
+    transform: translateY(-6px);
+}
+
+.playlist .card .card__img img {
+    object-fit: cover;
+}
+
+/** Page artiste : tableau cliquable */
+.track-row {
+    cursor: pointer;
+}
+
+.track-row.is-playing {
+    background-color: rgba(13, 110, 253, 0.35) !important;
+}
+
+/** Avatar "A propos" */
+.avatar--about {
+    width: 240px;
+    height: 240px;
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.avatar--about img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.about-card {
+    background-color: rgba(30, 30, 30, 0.65);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+/** Footer */
+.site-footer {
+    margin-top: 24px;
+    background-color: rgba(0, 0, 0, 0.55);
+    border-radius: 20px 20px 0 0;
+    font-size: 0.9rem;
+}
