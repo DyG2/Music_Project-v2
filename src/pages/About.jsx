@@ -1,6 +1,6 @@
 export default function About() {
   return (
-    <div className="row g-4 align-items-stretch">
+    <div className="row g-4 align-items-stretch fade-in p-2 p-md-3">
       <div className="col-md-6 text-center">
         <div className="avatar avatar--about mx-auto">
           <img src="/assets/img/me.png" alt="R. Dylane Gimode" />
@@ -31,17 +31,17 @@ export default function About() {
           </p>
 
           <div className="mt-auto">
-            <div className="social-links bg-white rounded p-3 d-grid gap-3">
-              <div className="d-flex align-items-center gap-2">
-                <i className="fa-solid fa-phone" style={{ color: "green" }}></i>
+            <div className="social-links rounded-3 p-2 d-grid gap-1">
+              <div className="social-row">
+                <i className="fa-solid fa-phone" style={{ color: "var(--accent)" }}></i>
                 <span>034 49 185 29</span>
               </div>
-              <div className="d-flex align-items-center gap-2">
-                <i className="fa-brands fa-linkedin" style={{ color: "#0077b5" }}></i>
+              <div className="social-row">
+                <i className="fa-brands fa-linkedin" style={{ color: "#4aa3df" }}></i>
                 <span>Dylane</span>
               </div>
-              <div className="d-flex align-items-center gap-2">
-                <i className="fa-brands fa-facebook" style={{ color: "#0077b5" }}></i>
+              <div className="social-row">
+                <i className="fa-brands fa-facebook" style={{ color: "#4aa3df" }}></i>
                 <span>Dylane Gidy</span>
               </div>
             </div>
