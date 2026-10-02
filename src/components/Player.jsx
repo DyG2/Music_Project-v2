@@ -131,6 +131,14 @@ export default function Player({ artist }) {
                     </th>
                     <td>
                       <div className="d-flex gap-2 align-items-center">
+                        {(t.img || artist.img) && (
+                          <img
+                            className="track-thumb"
+                            src={t.img || artist.img}
+                            alt=""
+                            loading="lazy"
+                          />
+                        )}
                         <span className="track-title">{t.title}</span>
                         {isActive && <Equalizer playing={p.playing} />}
                       </div>

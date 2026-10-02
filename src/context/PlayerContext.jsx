@@ -67,7 +67,7 @@ export function PlayerProvider({ children }) {
 
   const [volume, setVolume] = useState(() => {
     try {
-      const v = localStorage.getItem("ha_vol");
+      const v = localStorage.getItem("mo_vol");
       return v != null ? Math.min(1, Math.max(0, Number(v))) : 0.8;
     } catch {
       return 0.8;
@@ -162,7 +162,7 @@ export function PlayerProvider({ children }) {
     setVolume(nv);
     if (nv > 0) setMuted(false);
     try {
-      localStorage.setItem("ha_vol", String(nv));
+      localStorage.setItem("mo_vol", String(nv));
     } catch {
       /* stockage indisponible : on ignore */
     }
@@ -243,6 +243,7 @@ export function PlayerProvider({ children }) {
       <audio
         ref={audioRef}
         src={current?.src}
+        crossOrigin="anonymous"
         preload="metadata"
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}

@@ -3,7 +3,7 @@ import { NavLink, Link } from "react-router-dom";
 import { usePlayer } from "../context/PlayerContext.jsx";
 import Equalizer from "./Equalizer.jsx";
 
-const BRAND = "Hira'Alefako";
+const BRAND = "MusicOrchestra";
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);

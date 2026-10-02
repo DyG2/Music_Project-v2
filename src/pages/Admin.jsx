@@ -160,9 +160,376 @@ function Panel({ session }) {
           <i className="fa-solid fa-right-from-bracket me-1"></i> Se déconnecter
         </button>
       </div>
+      <BulkImport />
       <CreateArtist />
       <ArtistList />
     </>
+  );
+}
+
+const norm = (s) =>
+  s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+// Retire les parasites de titres YouTube : (Official Video), (MP3 160K)...
+const cleanTitle = (s) =>
+  s
+    .replace(/\((?=[^)]*(official|video|audio|lyrics|mp3|clip|hd|\d+k))[^)]*\)/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+/**
+ * Devine l'artiste de chaque fichier à partir de son nom.
+ * 1. "Artiste - Titre" ; 2. début du nom = artiste déjà existant ;
+ * 3. sinon 1er mot, étendu aux mots communs du groupe (ex : "Kaiamba Orchestra").
+ */
+function detectArtists(items, existing) {
+  const words = (s) => s.split(/\s+/).filter(Boolean);
+  const guessed = items.map((it) => {
+    const raw = it.file.name.replace(/\.[^.]+$/, "").replace(/_/g, " ").trim();
+    // Tags ID3 : fiables seulement si l'artiste apparaît dans le nom du fichier
+    // (sinon c'est souvent le nom de la chaîne YouTube : « Hira Gasy »...).
+    const tagArtist = (it.tags?.artist || "").split(/,|&| ft\.? /i)[0].trim();
+    if (tagArtist && norm(raw).includes(norm(tagArtist))) {
+      const tTitle = (it.tags?.title || "").trim();
+      const fromName = cleanTitle(
+        raw.replace(/^.*?\s[-–]\s/, "").replace(new RegExp("^" + tagArtist + "\\s*", "i"), "")
+      );
+      return { artist: tagArtist, title: tTitle && !/\s[-–]\s/.test(tTitle) ? cleanTitle(tTitle) : fromName };
+    }
+    const dash = raw.split(/\s+[-–]\s+/);
+    if (dash.length > 1) return { artist: dash[0].trim(), title: cleanTitle(dash.slice(1).join(" - ")) };
+    const n = norm(raw);
+    const known = existing
+      .filter((a) => n === norm(a.name) || n.startsWith(norm(a.name) + " "))
+      .sort((a, b) => b.name.length - a.name.length)[0];
+    if (known) {
+      const cut = words(known.name).length;
+      return { artist: known.name, title: cleanTitle(words(raw).slice(cut).join(" ")) || cleanTitle(raw) };
+    }
+    return { artist: null, title: cleanTitle(raw), raw };
+  });
+
+  // Groupes par 1er mot, puis préfixe commun des mots (si >= 2 fichiers).
+  const groups = {};
+  guessed.forEach((g, i) => {
+    if (g.artist) return;
+    const first = norm(words(g.raw)[0] || "");
+    (groups[first] ||= []).push(i);
+  });
+  Object.values(groups).forEach((idxs) => {
+    const lists = idxs.map((i) => words(guessed[i].raw));
+    let len = 1;
+    if (idxs.length > 1) {
+      while (
+        lists.every((l) => l[len] && norm(l[len]) === norm(lists[0][len])) &&
+        len < 3
+      )
+        len++;
+    }
+    idxs.forEach((i, k) => {
+      const l = lists[k];
+      guessed[i].artist = l.slice(0, len).join(" ");
+      guessed[i].title = cleanTitle(l.slice(len).join(" ")) || guessed[i].title;
+    });
+  });
+  return guessed;
+}
+
+const stripBom = (s) => (typeof s === "string" ? s.replace(/﻿/g, "").trim() : "");
+
+// Lit les infos ID3 d'un mp3 : artiste, titre et pochette intégrée.
+async function readTags(file) {
+  try {
+    const { default: jsmediatags } = await import(
+      "jsmediatags/dist/jsmediatags.min.js"
+    );
+    const t = await new Promise((resolve, reject) =>
+      jsmediatags.read(file, { onSuccess: resolve, onError: reject })
+    );
+    const g = t.tags || {};
+    let cover = null;
+    if (g.picture?.data?.length) {
+      const type = g.picture.format || "image/jpeg";
+      const ext = type.includes("png") ? "png" : "jpg";
+      cover = new File([new Uint8Array(g.picture.data)], `${slugify(file.name)}.${ext}`, { type });
+    }
+    return { tags: { artist: stripBom(g.artist), title: stripBom(g.title) }, cover };
+  } catch {
+    return { tags: null, cover: null };
+  }
+}
+
+function BulkImport() {
+  const [items, setItems] = useState([]); // {file,title,artist,img}
+  const [images, setImages] = useState([]); // images déposées (non associées)
+  const [existing, setExisting] = useState([]);
+  const [status, setStatus] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    supabase
+      .from("artists")
+      .select("id,name")
+      .then(({ data }) => data && setExisting(data));
+  }, []);
+
+  // Associe chaque image au titre dont le nom de fichier est le plus proche.
+  const matchImages = (list, imgs) =>
+    list.map((it) => {
+      if (it.img) return it;
+      const base = norm(titleFromName(it.file.name));
+      const m = imgs.find((im) => {
+        const ib = norm(titleFromName(im.name));
+        return ib && (ib === base || base.includes(ib) || ib.includes(base));
+      });
+      return m ? { ...it, img: m } : it;
+    });
+
+  const addFiles = async (fileList) => {
+    const files = [...fileList];
+    const audios = files.filter((f) => f.type.startsWith("audio/"));
+    const imgs = files.filter((f) => f.type.startsWith("image/"));
+    if (!audios.length && !imgs.length) {
+      setStatus({ type: "warning", text: "Dépose des fichiers audio ou image." });
+      return;
+    }
+    const allImgs = [...images, ...imgs];
+    setImages(allImgs);
+    setStatus({ type: "info", text: "Lecture des pochettes et infos intégrées…" });
+    const fresh = await Promise.all(
+      audios.map(async (file) => {
+        const { tags, cover } = await readTags(file);
+        return { file, title: "", artist: "", img: cover, tags };
+      })
+    );
+    const merged = [...items, ...fresh];
+    const det = detectArtists(merged, existing);
+    setItems(
+      matchImages(
+        merged.map((it, i) => ({
+          ...it,
+          // on garde les corrections manuelles déjà faites
+          artist: it.artist || det[i].artist,
+          title: it.title || det[i].title,
+        })),
+        allImgs
+      )
+    );
+    setStatus({
+      type: "success",
+      text: `${audios.length} titre(s) ajoutés, ${
+        fresh.filter((f) => f.img).length
+      } pochette(s) trouvée(s) ✓`,
+    });
+  };
+
+  const patch = (i, p) =>
+    setItems((l) => l.map((it, j) => (j === i ? { ...it, ...p } : it)));
+
+  const submit = async () => {
+    setBusy(true);
+    setStatus(null);
+    try {
+      if (items.some((t) => !t.title.trim() || !t.artist.trim()))
+        throw new Error("Chaque titre a besoin d'un titre et d'un artiste.");
+
+      const byArtist = new Map();
+      items.forEach((t) => {
+        const id = slugify(t.artist);
+        if (!id) throw new Error(`Artiste invalide : « ${t.artist} »`);
+        if (!byArtist.has(id)) byArtist.set(id, { name: t.artist.trim(), tracks: [] });
+        byArtist.get(id).tracks.push(t);
+      });
+
+      let done = 0;
+      for (const [id, group] of byArtist) {
+        setStatus({ type: "info", text: `Envoi : ${group.name}…` });
+        const { data: found } = await supabase
+          .from("artists")
+          .select("id")
+          .eq("id", id)
+          .maybeSingle();
+
+        if (!found) {
+          const firstImg = group.tracks.find((t) => t.img)?.img;
+          const img_url = firstImg ? await upload(firstImg, "images") : null;
+          const { data: maxRow } = await supabase
+            .from("artists")
+            .select("position")
+            .order("position", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          const { error } = await supabase.from("artists").insert({
+            id,
+            name: group.name,
+            img_url,
+            position: (maxRow?.position || 0) + 1,
+          });
+          if (error) throw error;
+        }
+
+        const { data: lastT } = await supabase
+          .from("tracks")
+          .select("position")
+          .eq("artist_id", id)
+          .order("position", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        let pos = lastT?.position || 0;
+
+        for (const t of group.tracks) {
+          const audio_url = await upload(t.file, "audio");
+          const img_url = t.img ? await upload(t.img, "images") : null;
+          const { error } = await supabase.from("tracks").insert({
+            artist_id: id,
+            title: t.title.trim(),
+            audio_url,
+            img_url,
+            position: ++pos,
+          });
+          if (error) throw error;
+          setStatus({ type: "info", text: `${++done}/${items.length} titres envoyés…` });
+        }
+      }
+
+      setStatus({
+        type: "success",
+        text: `${items.length} titre(s) classés dans ${byArtist.size} artiste(s) ✓`,
+      });
+      setItems([]);
+      setImages([]);
+      window.dispatchEvent(new Event("artists-changed"));
+    } catch (err) {
+      setStatus({ type: "danger", text: err.message || String(err) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="about-card p-4 rounded-3 mb-4">
+      <h4 className="mb-1">
+        <i className="fa-solid fa-wand-magic-sparkles me-2"></i>Import automatique
+      </h4>
+      <p className="text-muted-2 mb-3">
+        Dépose tous tes .mp3 (et leurs photos, avec le même nom que le titre) :
+        chaque chanson est classée automatiquement dans son artiste.
+      </p>
+      {status && <div className={`alert alert-${status.type} py-2`}>{status.text}</div>}
+
+      <div
+        className={"dropzone" + (dragging ? " is-dragging" : "")}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          if (e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files);
+        }}
+        onClick={() => inputRef.current?.click()}
+        role="button"
+        tabIndex={0}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*,audio/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            if (e.target.files?.length) addFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
+        <i className="fa-solid fa-cloud-arrow-up dropzone__icon"></i>
+        <div className="dropzone__text">
+          <strong>Glissez-déposez vos chansons et photos</strong>
+          <span>Ex : « Stromae Papaoutai.mp3 » → artiste Stromae.</span>
+        </div>
+      </div>
+
+      {items.map((t, i) => (
+        <div className="track-edit" key={i}>
+          <div className="row g-2 align-items-center">
+            <div className="col-auto">
+              {t.img ? (
+                <img
+                  className="track-thumb"
+                  src={URL.createObjectURL(t.img)}
+                  alt=""
+                />
+              ) : (
+                <div className="track-thumb d-flex align-items-center justify-content-center text-muted-2">
+                  <i className="fa-solid fa-image"></i>
+                </div>
+              )}
+            </div>
+            <div className="col-md-4 col">
+              <input
+                className="form-control"
+                placeholder="Artiste"
+                value={t.artist}
+                onChange={(e) => patch(i, { artist: e.target.value })}
+              />
+            </div>
+            <div className="col-md col-12">
+              <input
+                className="form-control"
+                placeholder="Titre"
+                value={t.title}
+                onChange={(e) => patch(i, { title: e.target.value })}
+              />
+            </div>
+            <div className="col-auto">
+              <label className="btn btn-ghost btn-sm mb-0" title="Photo de la chanson">
+                <i className="fa-solid fa-image"></i>
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => patch(i, { img: e.target.files[0] || t.img })}
+                />
+              </label>
+            </div>
+            <div className="col-auto">
+              <button
+                type="button"
+                className="btn btn-outline-danger btn-sm"
+                aria-label="Retirer"
+                onClick={() => setItems((l) => l.filter((_, j) => j !== i))}
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {items.length > 0 && (
+        <button className="btn btn-success btn-lg mt-3" onClick={submit} disabled={busy}>
+          {busy ? (
+            <>
+              <span className="loader loader--sm me-2"></span>Envoi…
+            </>
+          ) : (
+            <>
+              <i className="fa-solid fa-floppy-disk me-2"></i>Enregistrer {items.length}{" "}
+              titre(s)
+            </>
+          )}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -451,7 +818,7 @@ function ArtistList() {
   const load = async () => {
     const { data, error } = await supabase
       .from("artists")
-      .select("id,name,position,tracks(id,title,position)")
+      .select("id,name,img_url,position,tracks(id,title,img_url,position)")
       .order("position");
     if (error) setErr(error.message);
     else setArtists(data);
@@ -469,6 +836,19 @@ function ArtistList() {
     const { error } = await supabase.from("artists").delete().eq("id", id);
     if (error) setErr(error.message);
     else load();
+  };
+  // Change la photo d'un artiste ou d'une chanson (table : "artists" | "tracks").
+  const setPhoto = async (table, id, file) => {
+    if (!file) return;
+    try {
+      setErr("");
+      const img_url = await upload(file, "images");
+      const { error } = await supabase.from(table).update({ img_url }).eq("id", id);
+      if (error) throw error;
+      load();
+    } catch (e) {
+      setErr(e.message || String(e));
+    }
   };
   const delTrack = async (id) => {
     const { error } = await supabase.from("tracks").delete().eq("id", id);
@@ -500,6 +880,18 @@ function ArtistList() {
               <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <strong>{a.name}</strong>
                 <div className="d-flex gap-2">
+                  <label
+                    className="btn btn-sm btn-ghost icon-btn mb-0"
+                    title="Changer la photo de l'artiste"
+                  >
+                    <i className="fa-solid fa-image"></i>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      hidden
+                      onChange={(e) => setPhoto("artists", a.id, e.target.files[0])}
+                    />
+                  </label>
                   <Link
                     className="btn btn-sm btn-ghost icon-btn"
                     to={`/artist/${encodeURIComponent(a.id)}`}
@@ -525,6 +917,18 @@ function ArtistList() {
                 {list.map((t) => (
                   <li key={t.id} className="admin-track">
                     <span className="admin-track__title">{t.title}</span>
+                    <label
+                      className="btn btn-sm btn-ghost icon-btn mb-0 me-1"
+                      title="Changer la photo de la chanson"
+                    >
+                      <i className="fa-solid fa-image"></i>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        hidden
+                        onChange={(e) => setPhoto("tracks", t.id, e.target.files[0])}
+                      />
+                    </label>
                     <button
                       className="btn btn-sm btn-outline-danger icon-btn"
                       onClick={() => delTrack(t.id)}

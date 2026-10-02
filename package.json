@@ -1,9 +1,9 @@
 {
-  "name": "hira-alefako",
+  "name": "musicorchestra",
   "private": true,
   "version": "2.0.0",
   "type": "module",
-  "description": "Hira'Alefako - site musical (Projet SESAME) en React + Vite + Supabase",
+  "description": "MusicOrchestra - site musical (Projet SESAME) en React + Vite + Supabase",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -12,6 +12,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
     "bootstrap": "^5.3.3",
+    "jsmediatags": "^3.9.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.2"

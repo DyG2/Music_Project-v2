@@ -19,9 +19,9 @@ export default function Artist() {
   }, [id]);
 
   useEffect(() => {
-    if (artist) document.title = `${artist.name} – Hira'Alefako`;
+    if (artist) document.title = `${artist.name} – MusicOrchestra`;
     return () => {
-      document.title = "Hira'Alefako";
+      document.title = "MusicOrchestra";
     };
   }, [artist]);
 

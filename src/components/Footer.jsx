@@ -5,7 +5,7 @@ export default function Footer() {
   return (
     <div className="site-footer text-center text-white py-4 px-3">
       <p className="mb-2">
-        &copy; {year} Hira'Alefako &middot; Projet SESAME &middot; R. Dylane
+        &copy; {year} MusicOrchestra &middot; Projet SESAME &middot; R. Dylane
         Gimode
       </p>
       <Link to="/admin" className="footer-admin">

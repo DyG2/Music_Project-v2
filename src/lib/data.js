@@ -13,7 +13,7 @@ export function resolveUrl(u) {
 }
 
 const SELECT =
-  "id,name,img_url,position,tracks(id,title,duration,audio_url,position)";
+  "id,name,img_url,position,tracks(id,title,duration,audio_url,img_url,position)";
 
 function mapFromSupabase(a) {
   const tracks = (a.tracks || [])
@@ -23,8 +23,11 @@ function mapFromSupabase(a) {
       title: t.title,
       duration: t.duration || "",
       src: resolveUrl(t.audio_url),
+      img: resolveUrl(t.img_url),
     }));
-  return { id: a.id, name: a.name, img: resolveUrl(a.img_url), tracks };
+  // Sans photo d'artiste, on reprend celle de la première chanson illustrée.
+  const img = resolveUrl(a.img_url) || tracks.find((t) => t.img)?.img || "";
+  return { id: a.id, name: a.name, img, tracks };
 }
 
 function mapFromLocal(a) {

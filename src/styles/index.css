@@ -1,5 +1,5 @@
 /* ============================================================
-   Hira'Alefako — Design system (streaming moderne)
+   MusicOrchestra — Design system (streaming moderne)
    Palette sombre, accent vert, verre dépoli, animations douces.
    ============================================================ */
 
@@ -854,6 +854,13 @@ main {
 }
 .track-title {
   font-weight: 600;
+}
+.track-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex: none;
 }
 .track-time {
   color: var(--text-faint);

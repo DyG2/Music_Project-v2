@@ -1,4 +1,4 @@
-# Hira'Alefako — Projet SESAME
+# MusicOrchestra — Projet SESAME
 
 Application musicale en **React + Vite**, données **dynamiques via Supabase**
 (base + Auth + Storage), déployée sur **Vercel**. Les artistes et musiques sont

@@ -1,5 +1,5 @@
 -- ============================================================
---  Hira'Alefako — Schema Supabase
+--  MusicOrchestra — Schema Supabase
 --  A executer dans : Supabase Dashboard > SQL Editor > New query
 --  (copier-coller tout, puis RUN)
 -- ============================================================
@@ -23,6 +23,9 @@ create table if not exists public.tracks (
   position    int  not null default 0,
   created_at  timestamptz not null default now()
 );
+
+-- Photo propre a chaque chanson (a executer aussi si la table existe deja).
+alter table public.tracks add column if not exists img_url text;
 
 create index if not exists tracks_artist_idx on public.tracks (artist_id);
 
