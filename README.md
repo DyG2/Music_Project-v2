@@ -40,7 +40,8 @@ src/
     data.js                → fetchArtists / fetchArtist (+ repli local)
   data/artists.local.js    → données de secours (si pas de Supabase)
   styles/ index.css style.css
-supabase/schema.sql        → schéma + sécurité + bucket + données de départ
+supabase/migrations/       → schéma, rôles, sécurité, bucket (appliqué par `npm run db:push`)
+supabase/seed.sql          → données de départ (optionnel)
 ```
 
 ### Routes
@@ -73,8 +74,15 @@ Autres commandes : `npm run build` (production → `dist/`), `npm run preview`.
 ## Configuration Supabase (une seule fois)
 
 1. Crée un projet gratuit sur [supabase.com](https://supabase.com).
-2. **SQL Editor → New query** : colle tout [`supabase/schema.sql`](supabase/schema.sql) → **Run**
-   (tables, sécurité RLS, bucket `media`, 5 artistes de départ).
+2. Dans un terminal, à la racine du projet :
+   ```bash
+   npx supabase login        # une seule fois
+   npm run db:link           # demande le mot de passe de la base
+   npm run db:push           # tables, rôles, sécurité RLS, bucket `media`
+   ```
+   Un changement de base = un nouveau fichier dans `supabase/migrations/`, puis
+   `npm run db:push`. (Optionnel : colle `supabase/seed.sql` dans le SQL Editor
+   pour les 5 artistes de départ.)
 3. **Project Settings → API** : copie `Project URL` et la clé `anon` / `public`.
 4. Crée un fichier `.env` à la racine (copie de `.env.example`) :
    ```

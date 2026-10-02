@@ -34,7 +34,7 @@ function NotConfigured() {
         <p className="mb-2 text-muted-2">
           Renseigne tes clés dans un fichier <code>.env</code> (voir{" "}
           <code>.env.example</code>), puis exécute{" "}
-          <code>supabase/schema.sql</code> dans le SQL Editor de Supabase.
+          <code>npm run db:push</code> pour créer les tables.
         </p>
         <p className="mb-0 text-muted-2">
           Crée ensuite ton compte admin : <em>Authentication &gt; Users &gt; Add
@@ -155,13 +155,33 @@ function Login() {
   );
 }
 
+const ROLE_LABEL = { admin: "Administrateur", editor: "Éditeur" };
+
 function Panel({ session }) {
+  const [role, setRole] = useState(undefined); // undefined = chargement
+  const [roleErr, setRoleErr] = useState("");
+
+  useEffect(() => {
+    supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", session.user.id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) setRoleErr(error.message);
+        setRole(data?.role || null);
+      });
+  }, [session.user.id]);
+
+  const isAdmin = role === "admin";
+
   return (
     <>
       <div className="admin-session">
         <span className="admin-session__user">
           <i className="fa-solid fa-circle-user"></i>
           {session.user.email}
+          {role && <span className="role-badge ms-2">{ROLE_LABEL[role]}</span>}
         </span>
         <button
           className="btn btn-outline-light btn-sm"
@@ -170,10 +190,109 @@ function Panel({ session }) {
           <i className="fa-solid fa-right-from-bracket me-1"></i> Se déconnecter
         </button>
       </div>
-      <BulkImport />
-      <CreateArtist />
-      <ArtistList />
+
+      {role === undefined && (
+        <p className="text-center text-muted-2">
+          <span className="loader loader--sm"></span>
+        </p>
+      )}
+      {role === null && (
+        <div className="alert alert-warning">
+          Ton compte n'a aucun rôle : il ne peut rien modifier. Demande à un
+          administrateur de t'en donner un.
+          {roleErr && <div className="small mt-1">{roleErr}</div>}
+        </div>
+      )}
+      {role && (
+        <>
+          {isAdmin && <Users me={session.user.id} />}
+          <BulkImport />
+          <CreateArtist />
+          <ArtistList isAdmin={isAdmin} />
+        </>
+      )}
     </>
+  );
+}
+
+function Users({ me }) {
+  const [rows, setRows] = useState(null);
+  const [err, setErr] = useState("");
+
+  const load = async () => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id,email,role,created_at")
+      .order("created_at");
+    if (error) setErr(error.message);
+    else setRows(data);
+  };
+  useEffect(() => {
+    load();
+  }, []);
+
+  const changeRole = async (id, role) => {
+    setErr("");
+    const { error } = await supabase.from("profiles").update({ role }).eq("id", id);
+    if (error) setErr(error.message);
+    else load();
+  };
+  const revoke = async (id, email) => {
+    if (!confirm(`Retirer l'accès de ${email} ?`)) return;
+    setErr("");
+    const { error } = await supabase.from("profiles").delete().eq("id", id);
+    if (error) setErr(error.message);
+    else load();
+  };
+
+  return (
+    <div className="about-card p-4 rounded-3 mb-4">
+      <h4 className="mb-1">
+        <i className="fa-solid fa-users-gear me-2"></i>Utilisateurs et rôles
+      </h4>
+      <p className="text-muted-2 mb-3">
+        <b>Administrateur</b> : tout, y compris les rôles et les suppressions.{" "}
+        <b>Éditeur</b> : ajoute et modifie, sans supprimer. Pour inviter quelqu'un,
+        crée son compte dans Supabase (Authentication → Users → Add user) : il
+        apparaît ici comme éditeur.
+      </p>
+      {err && <div className="alert alert-danger py-2">{err}</div>}
+      {rows === null && !err && <span className="loader loader--sm"></span>}
+      {rows &&
+        rows.map((u) => (
+          <div className="track-edit" key={u.id}>
+            <div className="row g-2 align-items-center">
+              <div className="col text-break">
+                {u.email}
+                {u.id === me && <span className="text-muted-2"> (toi)</span>}
+              </div>
+              <div className="col-auto">
+                <select
+                  className="form-select form-select-sm"
+                  value={u.role}
+                  disabled={u.id === me}
+                  onChange={(e) => changeRole(u.id, e.target.value)}
+                  aria-label={`Rôle de ${u.email}`}
+                >
+                  <option value="admin">Administrateur</option>
+                  <option value="editor">Éditeur</option>
+                </select>
+              </div>
+              <div className="col-auto">
+                <button
+                  className="btn btn-outline-danger btn-sm"
+                  disabled={u.id === me}
+                  title="Retirer l'accès"
+                  aria-label="Retirer l'accès"
+                  onClick={() => revoke(u.id, u.email)}
+                >
+                  <i className="fa-solid fa-user-slash"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+    </div>
   );
 }
 
@@ -869,7 +988,7 @@ function EditableText({ value, onSave, className }) {
   );
 }
 
-function ArtistList() {
+function ArtistList({ isAdmin }) {
   const [artists, setArtists] = useState(null);
   const [err, setErr] = useState("");
 
@@ -968,14 +1087,16 @@ function ArtistList() {
                   >
                     <i className="fa-solid fa-eye"></i>
                   </Link>
-                  <button
-                    className="btn btn-sm btn-danger icon-btn"
-                    onClick={() => delArtist(a.id)}
-                    aria-label="Supprimer l'artiste"
-                    title="Supprimer l'artiste"
-                  >
-                    <i className="fa-solid fa-trash"></i>
-                  </button>
+                  {isAdmin && (
+                    <button
+                      className="btn btn-sm btn-danger icon-btn"
+                      onClick={() => delArtist(a.id)}
+                      aria-label="Supprimer l'artiste"
+                      title="Supprimer l'artiste"
+                    >
+                      <i className="fa-solid fa-trash"></i>
+                    </button>
+                  )}
                 </div>
               </div>
               <ul className="list-unstyled mt-3 mb-0">
@@ -1001,14 +1122,16 @@ function ArtistList() {
                         onChange={(e) => setPhoto("tracks", t.id, e.target.files[0])}
                       />
                     </label>
-                    <button
-                      className="btn btn-sm btn-outline-danger icon-btn"
-                      onClick={() => delTrack(t.id)}
-                      aria-label="Supprimer ce titre"
-                      title="Supprimer"
-                    >
-                      <i className="fa-solid fa-trash"></i>
-                    </button>
+                    {isAdmin && (
+                      <button
+                        className="btn btn-sm btn-outline-danger icon-btn"
+                        onClick={() => delTrack(t.id)}
+                        aria-label="Supprimer ce titre"
+                        title="Supprimer"
+                      >
+                        <i className="fa-solid fa-trash"></i>
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
