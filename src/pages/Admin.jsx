@@ -81,6 +81,7 @@ function Login() {
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [err, setErr] = useState("");
+  const [show, setShow] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -127,13 +128,22 @@ function Login() {
           <div className="input-icon">
             <i className="fa-solid fa-key"></i>
             <input
-              type="password"
+              type={show ? "text" : "password"}
               className="form-control"
               value={pass}
               onChange={(e) => setPass(e.target.value)}
               placeholder="••••••••"
               required
             />
+            <button
+              type="button"
+              className="input-eye"
+              onClick={() => setShow((v) => !v)}
+              aria-label={show ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              title={show ? "Masquer" : "Afficher"}
+            >
+              <i className={`fa-solid ${show ? "fa-eye-slash" : "fa-eye"}`}></i>
+            </button>
           </div>
         </div>
         <button className="btn btn-primary w-100 btn-lg" type="submit">
@@ -811,6 +821,54 @@ function CreateArtist() {
   );
 }
 
+// Texte modifiable en ligne : clic sur le crayon, Entrée pour valider, Échap pour annuler.
+function EditableText({ value, onSave, className }) {
+  const [editing, setEditing] = useState(false);
+  const [v, setV] = useState(value);
+
+  const commit = () => {
+    setEditing(false);
+    const next = v.trim();
+    if (next && next !== value) onSave(next);
+    else setV(value);
+  };
+
+  if (!editing)
+    return (
+      <span className={className}>
+        {value}
+        <button
+          type="button"
+          className="btn btn-sm btn-ghost icon-btn ms-2"
+          title="Renommer"
+          aria-label="Renommer"
+          onClick={() => {
+            setV(value);
+            setEditing(true);
+          }}
+        >
+          <i className="fa-solid fa-pen"></i>
+        </button>
+      </span>
+    );
+  return (
+    <input
+      className="form-control form-control-sm"
+      autoFocus
+      value={v}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") commit();
+        if (e.key === "Escape") {
+          setV(value);
+          setEditing(false);
+        }
+      }}
+    />
+  );
+}
+
 function ArtistList() {
   const [artists, setArtists] = useState(null);
   const [err, setErr] = useState("");
@@ -850,6 +908,12 @@ function ArtistList() {
       setErr(e.message || String(e));
     }
   };
+  const rename = async (table, col, id, value) => {
+    setErr("");
+    const { error } = await supabase.from(table).update({ [col]: value }).eq("id", id);
+    if (error) setErr(error.message);
+    else load();
+  };
   const delTrack = async (id) => {
     const { error } = await supabase.from("tracks").delete().eq("id", id);
     if (error) setErr(error.message);
@@ -878,7 +942,11 @@ function ArtistList() {
           return (
             <div className="about-card p-3 rounded-3 mb-3" key={a.id}>
               <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <strong>{a.name}</strong>
+                <EditableText
+                  className="fw-bold"
+                  value={a.name}
+                  onSave={(v) => rename("artists", "name", a.id, v)}
+                />
                 <div className="d-flex gap-2">
                   <label
                     className="btn btn-sm btn-ghost icon-btn mb-0"
@@ -916,7 +984,11 @@ function ArtistList() {
                 )}
                 {list.map((t) => (
                   <li key={t.id} className="admin-track">
-                    <span className="admin-track__title">{t.title}</span>
+                    <EditableText
+                      className="admin-track__title"
+                      value={t.title}
+                      onSave={(v) => rename("tracks", "title", t.id, v)}
+                    />
                     <label
                       className="btn btn-sm btn-ghost icon-btn mb-0 me-1"
                       title="Changer la photo de la chanson"

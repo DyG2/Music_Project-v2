@@ -1515,6 +1515,31 @@ body.has-player .page-content {
 .input-icon .form-control {
   padding-left: 40px;
 }
+.input-eye {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.input-eye:hover {
+  color: var(--text);
+}
+.input-icon .input-eye i {
+  position: static;
+  transform: none;
+  pointer-events: none;
+}
+.input-icon .input-eye ~ .form-control,
+.input-icon:has(.input-eye) .form-control {
+  padding-right: 46px;
+}
 
 /* ----- Admin: dropzone -------------------------------------- */
 .dropzone {
